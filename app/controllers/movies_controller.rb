@@ -21,6 +21,7 @@ class MoviesController < ApplicationController
     elsif session[ :ratings ]   #Only when we need to fill in the incomplete inputs with session data will we need redirection
       needs_redirection = true
     end
+    
     if params[ :order_by ]
       session[ :order_by ] = params[ :order_by ]
     elsif session[ :order_by ]  #Only when we need to fill in the incomplete inputs with session data will we need redirection
@@ -42,27 +43,25 @@ class MoviesController < ApplicationController
     end
 
     if session[ :order_by ] == nil
-      @movies = Movie.where({rating: selection_args})
-      @css_title_class = []
-      @css_release_date_class = []
+      @movies, @css_title_class, @css_release_date_class = Movie.where({rating: selection_args}), [], []
     else
       if session[ :order_by ] == "title"
-        @movies = Movie.where({rating: selection_args}).order(:title)
-        @css_title_class = [ "hilite" ]
-        @css_release_date_class = []
+        @movies, @css_title_class, @css_release_date_class = Movie.where({rating: selection_args}).order(:title), ["hilite"], []
       else
-        @movies = Movie.where({rating: selection_args}).order(:release_date)
-        @css_title_class = []
-        @css_release_date_class = [ "hilite" ]
+        @movies, @css_title_class, @css_release_date_class = Movie.where({rating: selection_args}).order(:release_date), [], ["hilite"]
       end
     end
     
     if needs_redirection
       ratings_and_order_by = {}
-      session[ :ratings ].each { |k, v|
-        ratings_and_order_by[ "ratings[#{k}]" ] = v
-      }
-      ratings_and_order_by[ :order_by ] = session[ :order_by ]
+      if session[ :ratings ]
+        session[ :ratings ].each { |k, v|
+          ratings_and_order_by[ "ratings[#{k}]" ] = v
+        }
+      end
+      if session[ :order_by ]
+        ratings_and_order_by[ :order_by ] = session[ :order_by ]
+      end
       flash.keep(:notice)
       redirect_to movies_path(ratings_and_order_by)
     end
@@ -73,9 +72,13 @@ class MoviesController < ApplicationController
   end
 
   def create
-    @movie = Movie.create!(movie_params)
-    flash[:notice] = "#{@movie.title} was successfully created."
-    redirect_to movies_path
+    @movie = Movie.new(movie_params)
+    if @movie.save
+      flash[:notice] = "#{@movie.title} was successfully created."
+      redirect_to movies_path
+    else
+      render 'new'
+    end
   end
 
   def edit
@@ -84,9 +87,12 @@ class MoviesController < ApplicationController
 
   def update
     @movie = Movie.find params[:id]
-    @movie.update_attributes!(movie_params)
-    flash[:notice] = "#{@movie.title} was successfully updated."
-    redirect_to movie_path(@movie)
+    if @movie.update_attributes(movie_params)
+      flash[:notice] = "#{@movie.title} was successfully updated."
+      redirect_to movie_path(@movie)
+    else
+      render 'edit'
+    end
   end
 
   def destroy
